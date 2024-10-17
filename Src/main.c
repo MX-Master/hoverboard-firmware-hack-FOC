@@ -238,7 +238,12 @@ int main(void) {
   #endif
 
   // Loop until button is released
+  // FIXME - MX_Master
+#if 0
   while(HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) { HAL_Delay(10); }
+#else
+  HAL_Delay(500);
+#endif
 
   #ifdef MULTI_MODE_DRIVE
     // Wait until triggers are released
@@ -536,7 +541,51 @@ int main(void) {
     #endif
 
     // ####### POWEROFF BY POWER-BUTTON #######
+    // FIXME - MX_Master
+#if 0
     poweroffPressCheck();
+#else
+    if(!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
+      // settings
+      uint32_t btn_press_timeout = 1000; // ms
+      uint32_t btn_press_debounce_time = 200; // ms
+      uint32_t btn_press_cnt_for_ADC_calib = 3;
+      // vars
+      uint32_t btn_press_cnt = 0;
+      uint32_t btn_press_time = 0;
+      while(!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN)) {
+        // catch power button OFF state
+        do {
+          HAL_Delay(btn_press_debounce_time);
+          btn_press_time += btn_press_debounce_time;
+          if (btn_press_time >= btn_press_timeout) poweroff();
+        } while(!HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
+        // catch power button ON state
+        btn_press_cnt++;
+        btn_press_time = 0;
+        do {
+          HAL_Delay(btn_press_debounce_time);
+          btn_press_time += btn_press_debounce_time;
+          if (btn_press_time >= btn_press_timeout) {
+            btn_press_cnt = 0;
+            btn_press_time = 0;
+            break;
+          }
+        } while(HAL_GPIO_ReadPin(BUTTON_PORT, BUTTON_PIN));
+        // check for power button press count
+        if (btn_press_cnt >= btn_press_cnt_for_ADC_calib) {
+#ifdef AUTO_CALIBRATION_ENA
+          beepLong(16);
+          adcCalibLim();
+          beepShort(5);
+#endif
+          btn_press_cnt = 0;
+          btn_press_time = 0;
+          break;
+        }
+      }
+    }
+#endif
 
     // ####### BEEP AND EMERGENCY POWEROFF #######
     if (TEMP_POWEROFF_ENABLE && board_temp_deg_c >= TEMP_POWEROFF && speedAvgAbs < 20){  // poweroff before mainboard burns OR low bat 3
